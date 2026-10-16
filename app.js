@@ -6,8 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropText = document.getElementById("dropText");
     const dropSub = document.getElementById("dropSub");
 
-    const API_URL = 'https://patcheri12.onrender.com/api/optimize';
-
     // Drag & Drop მოვლენების დამუშავება
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         dropArea.addEventListener(eventName, preventDefaults, false);
@@ -18,17 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
     }
 
-    // კლასის დამატება/მოხსნა მოვლენების დროს (და არა ერთდროულად ჩატვირთვისას)
     ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'));
+        dropArea.classList.add('dragover');
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'));
+        dropArea.classList.remove('dragover');
     });
 
     dropArea.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
+        const dt = e.dataTransfer;
+        const files = dt.files;
         if (files.length > 0) {
             fileInput.files = files;
             updateFileInfo(files[0]);
@@ -46,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dropSub.textContent = (file.size / (1024 * 1024)).toFixed(2) + " MB";
     }
 
-    // პატჩერის დინამიური მძებნელი
+    // პატჩერის დინამიური მძებნელი (core.js-ის ობიექტის მოსაძებნად)
     function findPatcher() {
         for (let key in window) {
             try {
@@ -57,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return obj[versions[0]];
                     }
                 }
-            } catch (e) {}
+            } catch(e) {}
         }
         for (let key in window) {
             try {
@@ -67,21 +65,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (obj[v] && obj[v].quickPatch) return obj[v];
                     }
                 }
-            } catch (e) {}
+            } catch(e) {}
         }
         return null;
     }
 
-    // URL-იდან ბილეთის (ticket) ამოღება
+    // URL-იდან ბილეთის (ticket) ამოღების ფუნქცია
     function getTicketFromUrl() {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get('ticket') || '';
-    }
-
-    function showStatus(msg, color) {
-        statusEl.style.display = "block";
-        statusEl.textContent = msg;
-        statusEl.style.color = color === "red" ? "var(--error)" : color === "green" ? "var(--success)" : "var(--flare-2)";
     }
 
     // დაპატჩვის ღილაკზე დაჭერა
@@ -99,16 +91,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // ბილეთი ერთჯერადია, ამიტომ ორმაგი დაჭერა უნდა დავბლოკოთ
-        btn.disabled = true;
         showStatus("მოწმდება ბილეთი სერვერზე...", "yellow");
 
         try {
-            // 1. სერვერზე იგზავნება მხოლოდ ბილეთი (ვიდეო არ იტვირთება)
-            const response = await fetch(API_URL, {
+            // 1. ბილეთისა და ვიდეოს გაგზავნა Render სერვერზე
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('ticket', ticket);
+
+            const response = await fetch('https://patcheri12.onrender.com/api/optimize', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ticket })
+                body: formData
             });
 
             const serverResult = await response.json();
@@ -117,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(serverResult.error || "სერვერმა უარყო მოთხოვნა.");
             }
 
-            // 2. დაპატჩვა ბრაუზერში
+            // 2. წარმატებული ავტორიზაციის შემდეგ გადავდივართ core.js-ით დაპატჩვაზე
             showStatus("ბილეთი დადასტურებულია! მიმდინარეობს ვიდეოს დაპატჩვა...", "green");
 
             const arrayBuffer = await file.arrayBuffer();
@@ -147,33 +140,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalBuffer = patchedResult.out || patchedResult.buffer || patchedResult.data || patchedResult.result;
             }
 
-            if (!finalBuffer) {
+            if (finalBuffer) {
+                showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
+
+                // 3. ლოკალურად გადმოწერა ბრაუზერში
+                const blob = new Blob([finalBuffer], { type: "application/octet-stream" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = "patched_" + file.name;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 10000);
+            } else {
                 throw new Error("პატჩინგმა შედეგი არ დააბრუნა.");
             }
-
-            showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
-
-            // 3. ლოკალური ჩამოტვირთვა
-            const blob = new Blob([finalBuffer], { type: "video/mp4" });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = "patched_" + file.name;
-
-            document.body.appendChild(a);
-            a.click();
-
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 10000);
         } catch (err) {
             console.error(err);
             showStatus("შეცდომა: " + err.message, "red");
-        } finally {
-            btn.disabled = false;
         }
     });
+
+    function showStatus(msg, color) {
+        statusEl.style.display = "block";
+        statusEl.textContent = msg;
+        statusEl.style.color = color === "red" ? "var(--error)" : color === "green" ? "var(--success)" : "var(--flare-2)";
+    }
 });
