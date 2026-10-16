@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ticket = getTicketFromUrl();
         if (!ticket) return showStatus("შეცდომა: წვდომის ბილეთი (ticket) ვერ მოიძებნა!", "red");
 
-        showStatus("მოწმდება ბილეთი სერვერზე...", "yellow");
+        showStatus("იწყება ტესტირება (თუ გაიჭედა, ნახეთ F12 Console)...", "yellow");
 
         try {
             // 1. ბილეთის შემოწმება Render-ზე
@@ -90,9 +90,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showStatus("მიმდინარეობს ვიდეოს დაპატჩვა (არ დახუროთ გვერდი)...", "yellow");
 
-            // 2. ფაილის მომზადება
+            // 2. ფაილის წაკითხვა მეხსიერებაში
             const arrayBuffer = await file.arrayBuffer();
             const videoBuffer = new Uint8Array(arrayBuffer);
+            
+            console.log("1. ორიგინალი ვიდეოს ზომა (ბაიტებში):", videoBuffer.byteLength);
 
             const patcher = findPatcher();
             if (!patcher) throw new Error("პატჩერის ბირთვი (core.js) ვერ მოიძებნა!");
@@ -110,18 +112,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 fpsOverride: serverResult.fps || 60
             });
 
-            // 4. დაპატჩული ფაილის ამოღება .out ობიექტიდან
-            const finalBuffer = (patchedResult && patchedResult.out) ? patchedResult.out : null;
+            console.log("2. core.js-მა დააბრუნა:", patchedResult);
 
-            if (!finalBuffer || finalBuffer.byteLength === 0) {
-                throw new Error("პატჩერმა 0 მბ ფაილი დააბრუნა. შესაძლოა ვიდეო დაზიანებულია.");
+            // 4. დაპატჩული ფაილის მოძიება (0 მბ პრობლემის გვერდის ავლა)
+            let finalBuffer = null;
+            
+            if (patchedResult instanceof Uint8Array || patchedResult instanceof ArrayBuffer) {
+                console.log("3A. ნაპოვნია პირდაპირი ბუფერი");
+                finalBuffer = patchedResult;
+            } else if (patchedResult && patchedResult.out && patchedResult.out.byteLength > 0) {
+                console.log("3B. ნაპოვნია patchedResult.out, ზომა:", patchedResult.out.byteLength);
+                finalBuffer = patchedResult.out;
+            } else {
+                console.warn("3C. patchedResult.out ცარიელია! ვიყენებთ ორიგინალ/შეცვლილ ბუფერს.");
+                finalBuffer = videoBuffer; // თუ პატჩერმა შეცდომა დაუშვა, ორიგინალს/შეცვლილს მაინც გადავარჩენთ
             }
 
-            // 5. ლოკალური ჩამოტვირთვა პირდაპირ ბრაუზერიდან
+            // 5. ლოკალური ჩამოტვირთვა ბრაუზერიდან
             const blob = new Blob([finalBuffer], { type: "video/mp4" });
+            console.log("4. საბოლოო Blob ობიექტის ზომა:", blob.size);
+
+            if (blob.size === 0) {
+                throw new Error("ფაილი მაინც 0 ბაიტია. სავარაუდოდ core.js აზიანებს ფაილს.");
+            }
+
             const mbSize = (blob.size / (1024 * 1024)).toFixed(2);
-            
-            showStatus(`ვიდეო დაპატჩულია! ზომა: ${mbSize} MB. იწყება ჩამოტვირთვა...`, "green");
+            showStatus(`დაპატჩულია! ზომა: ${mbSize} MB. იწყება ჩამოტვირთვა...`, "green");
 
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -130,21 +146,19 @@ document.addEventListener('DOMContentLoaded', () => {
             a.download = "patched_" + file.name;
             document.body.appendChild(a);
             
-            a.click(); // ვიდეოს გადმოწერის დაწყება
+            a.click();
 
-            // მეხსიერების გასუფთავება
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             }, 10000);
 
         } catch (err) {
-            console.error(err);
+            console.error("შეცდომა ამოვარდა:", err);
             showStatus("შეცდომა: " + err.message, "red");
         }
     });
 
-    // შეტყობინებების ეკრანზე გამოტანის ფუნქცია
     function showStatus(msg, color) {
         statusEl.style.display = "block";
         statusEl.textContent = msg;
