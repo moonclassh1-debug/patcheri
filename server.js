@@ -35,7 +35,7 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// 4. ბილეთის შემოწმების ფუნქცია
+// 4. ბილეთის შემოწმების ფუნქცია (გამოიყენება მხოლოდ /api/optimize-ზე)
 function verifyTicket(req, res, next) {
   try {
     if (!process.env.TICKET_SECRET) {
@@ -91,8 +91,8 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
   }
 });
 
-// 6. დავალების სტატუსის შემოწმების მარშრუტი
-app.get('/api/jobs/:id', verifyTicket, (req, res) => {
+// 6. დავალების სტატუსის შემოწმების მარშრუტი (ღიაა ფრონტენდის პოლინგისთვის)
+app.get('/api/jobs/:id', (req, res) => {
   res.json({
     success: true,
     status: 'completed',
