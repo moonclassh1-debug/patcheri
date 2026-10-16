@@ -100,11 +100,9 @@ app.get('/api/jobs/:id', (req, res) => {
   });
 });
 
-// 7. ჩამოტვირთვის მარშრუტი (ჩამოტვირთვის ჰედერებით)
+// 7. ჩამოტვირთვის მარშრუტი (ფრონტენდს ატყობინებს, რომ კლიენტის მხარეს გადმოწეროს)
 app.get('/api/download/:id', (req, res) => {
-  res.setHeader('Content-Disposition', 'attachment; filename="patched_video.mp4"');
-  res.setHeader('Content-Type', 'application/octet-stream');
-  res.status(200).send(Buffer.from([]));
+  res.json({ success: true, message: "Use client-side blob download" });
 });
 
 // 8. სერვერის გაშვება
