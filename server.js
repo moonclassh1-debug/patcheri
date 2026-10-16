@@ -20,7 +20,7 @@ app.options('*', cors(corsOpts));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. მთავარი მარშრუტი
+// 2. მთავარი (Root) მარშრუტი
 app.get('/', (req, res) => {
   res.status(200).send('Patcher Backend is Running!');
 });
@@ -35,7 +35,7 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// 4. ბილეთის შემოწმების ფუნქცია (გამოიყენება მხოლოდ /api/optimize-ზე)
+// 4. ბილეთის შემოწმების ფუნქცია
 function verifyTicket(req, res, next) {
   try {
     if (!process.env.TICKET_SECRET) {
@@ -91,7 +91,7 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
   }
 });
 
-// 6. დავალების სტატუსის შემოწმების მარშრუტი (ღიაა ფრონტენდის პოლინგისთვის)
+// 6. სტატუსის შემოწმების მარშრუტი (Polling)
 app.get('/api/jobs/:id', (req, res) => {
   res.json({
     success: true,
@@ -100,6 +100,14 @@ app.get('/api/jobs/:id', (req, res) => {
   });
 });
 
-// 7. სერვერის გაშვება
+// 7. ჩამოტვირთვის მარშრუტი (ფრონტენდის გადამისამართების თავიდან ასაცილებლად)
+app.get('/api/download/:id', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Client-side download active"
+  });
+});
+
+// 8. სერვერის გაშვება
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
