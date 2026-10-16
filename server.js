@@ -6,7 +6,7 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const app = express();
 
-// 1. CORS კონფიგურაცია
+// 1. CORS კონფიგურაცია - აუცილებლად პირველი უნდა იყოს!
 const corsOpts = {
   origin: ['https://moonfull4k.xyz', 'https://www.moonfull4k.xyz'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -95,4 +95,4 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
 
 // 6. სერვერის გაშვება
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));}`));
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
