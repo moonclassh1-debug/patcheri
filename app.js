@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById("patchBtn");document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById("patchBtn");
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("inputFile");
@@ -143,8 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (finalBuffer) {
                 showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
 
-                // 💡 application/octet-stream აიძულებს ბრაუზერს ფაილის პირდაპირ ჩამოტვირთვას და არა პლეერში გახსნას
-                const blob = new Blob([finalBuffer], { type: "application/octet-stream" });
+                // 3. რეალური დაპატჩული ფაილის ლოკალურად ჩამოტვირთვა ბრაუზერში
+                const blob = new Blob([finalBuffer], { type: "video/mp4" });
                 const url = URL.createObjectURL(blob);
 
                 const a = document.createElement('a');
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                }, 1000);
+                }, 10000);
             } else {
                 throw new Error("პატჩინგმა შედეგი არ დააბრუნა.");
             }
