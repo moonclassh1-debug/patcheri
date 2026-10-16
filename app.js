@@ -6,18 +6,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropText = document.getElementById("dropText");
     const dropSub = document.getElementById("dropSub");
 
-    // Drag & Drop მოვლენების დამუშავება
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-    });
+    // ---------- Drag & Drop ----------
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev =>
+        dropArea.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }, false));
 
-    function preventDefaults(e) { 
-        e.preventDefault(); 
-        e.stopPropagation(); 
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => dropArea.classList.add('dragover'));
-    ['dragleave', 'drop'].forEach(eventName => dropArea.classList.remove('dragover'));
+    // შესწორება: ადრე კლასი ერთიანად ემატებოდა და მაშინვე იშლებოდა (ივენთების გარეშე)
+    ['dragenter', 'dragover'].forEach(ev =>
+        dropArea.addEventListener(ev, () => dropArea.classList.add('dragover')));
+    ['dragleave', 'drop'].forEach(ev =>
+        dropArea.addEventListener(ev, () => dropArea.classList.remove('dragover')));
 
     dropArea.addEventListener('drop', (e) => {
         const files = e.dataTransfer.files;
@@ -36,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dropSub.textContent = (file.size / (1024 * 1024)).toFixed(2) + " MB";
     }
 
-    // პატჩერის ბირთვის დინამიური ძებნა
+    // ---------- პატჩერის ბირთვის ძებნა ----------
     function findPatcher() {
         for (let key in window) {
             try {
@@ -45,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let versions = Object.keys(obj);
                     if (versions.length > 0 && obj[versions[0]].quickPatch) return obj[versions[0]];
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
         for (let key in window) {
             try {
@@ -53,16 +50,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (obj && typeof obj === 'object') {
                     for (let v in obj) { if (obj[v] && obj[v].quickPatch) return obj[v]; }
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
         return null;
     }
 
-    // URL-დან Ticket-ის წამოღება
     function getTicketFromUrl() {
         return new URLSearchParams(window.location.search).get('ticket') || '';
     }
 
+    // ---------- შედეგის უსაფრთხო ამოღება ----------
+    // quickPatch-ის შედეგი შეიძლება იყოს Uint8Array / ArrayBuffer / Blob / chunk-ების მასივი.
+    // ძველი შემოწმება (byteLength === 0) ვერ იჭერდა ცარიელ Blob-ს ან ცარიელ მასივს -> 0 MB ფაილი.
+    function sizeOf(x) {
+        if (!x) return 0;
+        if (typeof x.byteLength === 'number') return x.byteLength;
+        if (typeof x.size === 'number') return x.size;
+        if (Array.isArray(x)) return x.reduce((s, c) => s + sizeOf(c), 0);
+        return 0;
+    }
+
+    function pickOutput(res) {
+        if (!res) return null;
+        if (res instanceof Uint8Array || res instanceof ArrayBuffer || res instanceof Blob) return res;
+        for (const k of ['out', 'output', 'data', 'buffer', 'result', 'bytes']) {
+            if (res[k] && sizeOf(res[k]) > 0) return res[k];
+        }
+        return res.out || null;
+    }
+
+    function describe(res) {
+        try {
+            if (!res) return String(res);
+            if (typeof res !== 'object') return typeof res;
+            return Object.keys(res).map(k => {
+                const v = res[k];
+                return k + ':' + (v && v.constructor ? v.constructor.name : typeof v) + '(' + sizeOf(v) + ')';
+            }).join(', ');
+        } catch (e) { return '?'; }
+    }
+
+    async function hasMp4Signature(blob) {
+        const head = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+        return String.fromCharCode(...head.slice(4, 8)) === 'ftyp';
+    }
+
+    // ---------- მთავარი ----------
     btn.addEventListener("click", async () => {
         const file = fileInput.files[0];
         if (!file) return showStatus("გთხოვთ აირჩიოთ ან ჩააგდოთ MP4 ვიდეო!", "red");
@@ -70,10 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const ticket = getTicketFromUrl();
         if (!ticket) return showStatus("შეცდომა: წვდომის ბილეთი (ticket) ვერ მოიძებნა!", "red");
 
-        showStatus("იწყება ტესტირება (თუ გაიჭედა, ნახეთ F12 Console)...", "yellow");
+        btn.disabled = true;
+        showStatus("მოწმდება ბილეთი სერვერზე...", "yellow");
 
         try {
-            // 1. ბილეთის შემოწმება Render-ზე
+            // 1. ბილეთის შემოწმება
             const formData = new FormData();
             formData.append('file', file);
             formData.append('ticket', ticket);
@@ -83,61 +117,74 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
-            const serverResult = await response.json();
+            let serverResult = {};
+            try { serverResult = await response.json(); } catch (e) {}
+            console.log('[patcher] server response', response.status, serverResult);
+
             if (!response.ok || !serverResult.success) {
-                throw new Error(serverResult.error || "სერვერმა უარყო მოთხოვნა.");
+                throw new Error(serverResult.error || serverResult.message || ("სერვერმა უარყო მოთხოვნა (HTTP " + response.status + ")."));
             }
 
             showStatus("მიმდინარეობს ვიდეოს დაპატჩვა (არ დახუროთ გვერდი)...", "yellow");
 
-            // 2. ფაილის წაკითხვა მეხსიერებაში
+            // 2. ფაილის წაკითხვა
             const arrayBuffer = await file.arrayBuffer();
-            const videoBuffer = new Uint8Array(arrayBuffer);
-            
-            console.log("1. ორიგინალი ვიდეოს ზომა (ბაიტებში):", videoBuffer.byteLength);
 
             const patcher = findPatcher();
             if (!patcher) throw new Error("პატჩერის ბირთვი (core.js) ვერ მოიძებნა!");
 
-            const compatibility = patcher.checkCompatibility(videoBuffer);
-            if (!compatibility.compatible) {
-                throw new Error("ვიდეო არ არის თავსებადი: " + compatibility.reason);
+            const fps = Number(serverResult.fps) > 0 ? Number(serverResult.fps) : 60;
+
+            // 3. დაპატჩვა. quickPatch-მა შეიძლება შემავალი ბუფერი შეცვალოს/გამოიყენოს,
+            // ამიტომ ყოველ ცდაზე ახალ ასლს ვაძლევთ. თუ ცარიელი გამოვიდა, ოფციებს ვამცირებთ.
+            const attempts = [
+                { useTmcd: true,  useAlt: true,  useDur: true  },
+                { useTmcd: true,  useAlt: false, useDur: true  },
+                { useTmcd: false, useAlt: false, useDur: true  },
+                { useTmcd: false, useAlt: false, useDur: false }
+            ];
+
+            let blob = null, lastInfo = '';
+            for (let i = 0; i < attempts.length; i++) {
+                const videoBuffer = new Uint8Array(arrayBuffer.slice(0));
+
+                const compatibility = patcher.checkCompatibility(new Uint8Array(arrayBuffer.slice(0)));
+                if (compatibility && compatibility.compatible === false) {
+                    throw new Error("ვიდეო არ არის თავსებადი: " + (compatibility.reason || ''));
+                }
+
+                let res;
+                try {
+                    res = patcher.quickPatch(videoBuffer, Object.assign({ fpsOverride: fps }, attempts[i]));
+                    if (res && typeof res.then === 'function') res = await res; // თუ async არის
+                } catch (e) {
+                    lastInfo = 'exception: ' + e.message;
+                    console.warn('[patcher] attempt', i, lastInfo);
+                    continue;
+                }
+
+                lastInfo = describe(res);
+                console.log('[patcher] attempt', i, attempts[i], lastInfo);
+
+                const out = pickOutput(res);
+                if (!out || sizeOf(out) === 0) continue;
+
+                const b = new Blob([out], { type: "video/mp4" });
+                if (b.size === 0) continue;
+                if (!(await hasMp4Signature(b))) { lastInfo += ' | არასწორი MP4 სათაური'; continue; }
+
+                blob = b;
+                if (i > 0) console.warn('[patcher] წარმატებული ცდა N' + (i + 1) + ' შემცირებული ოფციებით', attempts[i]);
+                break;
             }
 
-            // 3. ვიდეოს დაპატჩვა
-            const patchedResult = patcher.quickPatch(videoBuffer, {
-                useTmcd: true,
-                useAlt: true,
-                useDur: true,
-                fpsOverride: serverResult.fps || 60
-            });
-
-            console.log("2. core.js-მა დააბრუნა:", patchedResult);
-
-            // 4. დაპატჩული ფაილის მოძიება (0 მბ პრობლემის გვერდის ავლა)
-            let finalBuffer = null;
-            
-            if (patchedResult instanceof Uint8Array || patchedResult instanceof ArrayBuffer) {
-                console.log("3A. ნაპოვნია პირდაპირი ბუფერი");
-                finalBuffer = patchedResult;
-            } else if (patchedResult && patchedResult.out && patchedResult.out.byteLength > 0) {
-                console.log("3B. ნაპოვნია patchedResult.out, ზომა:", patchedResult.out.byteLength);
-                finalBuffer = patchedResult.out;
-            } else {
-                console.warn("3C. patchedResult.out ცარიელია! ვიყენებთ ორიგინალ/შეცვლილ ბუფერს.");
-                finalBuffer = videoBuffer; // თუ პატჩერმა შეცდომა დაუშვა, ორიგინალს/შეცვლილს მაინც გადავარჩენთ
+            if (!blob) {
+                throw new Error("პატჩერმა ცარიელი ფაილი დააბრუნა. პატჩერის პასუხი: " + lastInfo);
             }
 
-            // 5. ლოკალური ჩამოტვირთვა ბრაუზერიდან
-            const blob = new Blob([finalBuffer], { type: "video/mp4" });
-            console.log("4. საბოლოო Blob ობიექტის ზომა:", blob.size);
-
-            if (blob.size === 0) {
-                throw new Error("ფაილი მაინც 0 ბაიტია. სავარაუდოდ core.js აზიანებს ფაილს.");
-            }
-
+            // 4. ჩამოტვირთვა
             const mbSize = (blob.size / (1024 * 1024)).toFixed(2);
-            showStatus(`დაპატჩულია! ზომა: ${mbSize} MB. იწყება ჩამოტვირთვა...`, "green");
+            showStatus(`ვიდეო დაპატჩულია! ზომა: ${mbSize} MB. იწყება ჩამოტვირთვა...`, "green");
 
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -145,17 +192,18 @@ document.addEventListener('DOMContentLoaded', () => {
             a.href = url;
             a.download = "patched_" + file.name;
             document.body.appendChild(a);
-            
             a.click();
 
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            }, 10000);
+            }, 60000);
 
         } catch (err) {
-            console.error("შეცდომა ამოვარდა:", err);
+            console.error(err);
             showStatus("შეცდომა: " + err.message, "red");
+        } finally {
+            btn.disabled = false;
         }
     });
 
