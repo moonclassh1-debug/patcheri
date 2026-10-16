@@ -143,17 +143,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (finalBuffer) {
                 showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
 
-                const blob = new Blob([finalBuffer], { type: "video/mp4" });
+                // 💡 application/octet-stream აიძულებს ბრაუზერს ფაილის პირდაპირ ჩამოტვირთვას და არა პლეერში გახსნას
+                const blob = new Blob([finalBuffer], { type: "application/octet-stream" });
                 const url = URL.createObjectURL(blob);
 
                 const a = document.createElement('a');
+                a.style.display = 'none';
                 a.href = url;
                 a.download = "patched_" + file.name;
+                
                 document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-
-                setTimeout(() => URL.revokeObjectURL(url), 10000);
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 1000);
             } else {
                 throw new Error("პატჩინგმა შედეგი არ დააბრუნა.");
             }
