@@ -140,21 +140,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 finalBuffer = patchedResult.out || patchedResult.buffer || patchedResult.data || patchedResult.result;
             }
 
+            // 3. ლოკალურად გადმოწერა ბრაუზერში (0 მბ პრობლემის გამოსწორება)
             if (finalBuffer) {
                 showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
 
-                // 3. ლოკალურად გადმოწერა ბრაუზერში
-                const blob = new Blob([finalBuffer], { type: "application/octet-stream" });
+                const blob = new Blob([finalBuffer], { type: "video/mp4" });
                 const url = URL.createObjectURL(blob);
 
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = "patched_" + file.name;
+                a.download = "patched_" + file.name; // ინარჩუნებს ორიგინალ სახელს "patched_"-ის დამატებით
                 
                 document.body.appendChild(a);
                 a.click();
                 
+                // მეხსიერების გაწმენდა 10 წამში
                 setTimeout(() => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
