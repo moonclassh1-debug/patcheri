@@ -70,6 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    // URL-იდან ბილეთის (ticket) ამოღების ფუნქცია
+    function getTicketFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('ticket') || '';
+    }
+
     // დაპატჩვის ღილაკზე დაჭერა
     btn.addEventListener("click", async () => {
         const file = fileInput.files[0];
@@ -79,59 +85,82 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        showStatus("მიმდინარეობს ვიდეოს დამუშავება...", "yellow");
+        const ticket = getTicketFromUrl();
+        if (!ticket) {
+            showStatus("შეცდომა: წვდომის ბილეთი (ticket) ვერ მოიძებნა URL-ში!", "red");
+            return;
+        }
 
-        setTimeout(async () => {
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const videoBuffer = new Uint8Array(arrayBuffer);
+        showStatus("მოწმდება ბილეთი სერვერზე...", "yellow");
 
-                const patcher = findPatcher();
-                if (!patcher) {
-                    throw new Error("პატჩერის ბირთვი (core.js) ვერ ჩაიტვირთა!");
-                }
+        try {
+            // 1. ბილეთისა და ვიდეოს გაგზავნა Render-ზე
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('ticket', ticket);
 
-                const compatibility = patcher.checkCompatibility(videoBuffer);
-                if (!compatibility.compatible) {
-                    throw new Error("ვიდეო არ არის თავსებადი: " + compatibility.reason);
-                }
+            const response = await fetch('https://patcheri12.onrender.com/api/optimize', {
+                method: 'POST',
+                body: formData
+            });
 
-                const patchedResult = await patcher.quickPatch(videoBuffer, {
-                    useTmcd: true,
-                    useAlt: true,
-                    useDur: true,
-                    fpsOverride: 60
-                });
+            const serverResult = await response.json();
 
-                let finalBuffer = null;
-                if (patchedResult instanceof Uint8Array) {
-                    finalBuffer = patchedResult;
-                } else if (patchedResult) {
-                    finalBuffer = patchedResult.out || patchedResult.buffer || patchedResult.data || patchedResult.result;
-                }
-
-                if (finalBuffer) {
-                    showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
-
-                    const blob = new Blob([finalBuffer], { type: "video/mp4" });
-                    const url = URL.createObjectURL(blob);
-
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = "patched_" + file.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-
-                    setTimeout(() => URL.revokeObjectURL(url), 10000);
-                } else {
-                    throw new Error("პატჩინგმა შედეგი არ დააბრუნა.");
-                }
-            } catch (err) {
-                console.error(err);
-                showStatus("შეცდომა: " + err.message, "red");
+            if (!response.ok || !serverResult.success) {
+                throw new Error(serverResult.error || "სერვერმა უარყო მოთხოვნა.");
             }
-        }, 50);
+
+            // 2. წარმატებული ავტორიზაციის შემდეგ გადავდივართ დაპატჩვაზე
+            showStatus("ბილეთი დადასტურებულია! მიმდინარეობს ვიდეოს დაპატჩვა...", "green");
+
+            const arrayBuffer = await file.arrayBuffer();
+            const videoBuffer = new Uint8Array(arrayBuffer);
+
+            const patcher = findPatcher();
+            if (!patcher) {
+                throw new Error("პატჩერის ბირთვი (core.js) ვერ ჩაიტვირთა!");
+            }
+
+            const compatibility = patcher.checkCompatibility(videoBuffer);
+            if (!compatibility.compatible) {
+                throw new Error("ვიდეო არ არის თავსებადი: " + compatibility.reason);
+            }
+
+            const patchedResult = await patcher.quickPatch(videoBuffer, {
+                useTmcd: true,
+                useAlt: true,
+                useDur: true,
+                fpsOverride: serverResult.fps || 60
+            });
+
+            let finalBuffer = null;
+            if (patchedResult instanceof Uint8Array) {
+                finalBuffer = patchedResult;
+            } else if (patchedResult) {
+                finalBuffer = patchedResult.out || patchedResult.buffer || patchedResult.data || patchedResult.result;
+            }
+
+            if (finalBuffer) {
+                showStatus("ვიდეო წარმატებით დაპატჩდა! იწყება გადმოწერა...", "green");
+
+                const blob = new Blob([finalBuffer], { type: "video/mp4" });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "patched_" + file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                setTimeout(() => URL.revokeObjectURL(url), 10000);
+            } else {
+                throw new Error("პატჩინგმა შედეგი არ დააბრუნა.");
+            }
+        } catch (err) {
+            console.error(err);
+            showStatus("შეცდომა: " + err.message, "red");
+        }
     });
 
     function showStatus(msg, color) {
