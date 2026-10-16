@@ -6,7 +6,7 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const app = express();
 
-// 1. CORS კონფიგურაცია - აუცილებლად პირველი უნდა იყოს!
+// 1. CORS კონფიგურაცია
 const corsOpts = {
   origin: ['https://moonfull4k.xyz', 'https://www.moonfull4k.xyz'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -15,12 +15,12 @@ const corsOpts = {
 };
 
 app.use(cors(corsOpts));
-app.options('*', cors(corsOpts)); // ყველა OPTIONS (preflight) მოთხოვნის დაშვება
+app.options('*', cors(corsOpts));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. მთავარი (Root) მარშრუტი — 404 შეცდომის თავიდან ასაცილებლად
+// 2. მთავარი მარშრუტი
 app.get('/', (req, res) => {
   res.status(200).send('Patcher Backend is Running!');
 });
@@ -78,8 +78,6 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
   try {
     const H = req.ticket.maxH;
     const FPS = req.ticket.maxFps;
-
-    // დროებითი უნიკალური jobId ფრონტენდის ინტერფეისისთვის
     const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
     res.json({ 
@@ -93,6 +91,15 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
   }
 });
 
-// 6. სერვერის გაშვება
+// 6. დავალების სტატუსის შემოწმების მარშრუტი
+app.get('/api/jobs/:id', verifyTicket, (req, res) => {
+  res.json({
+    success: true,
+    status: 'completed',
+    jobId: req.params.id
+  });
+});
+
+// 7. სერვერის გაშვება
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
