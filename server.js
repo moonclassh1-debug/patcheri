@@ -146,17 +146,19 @@ function runFfmpeg(job, inPath, H, FPS) {
 app.post('/api/optimize', upload.single('file'), verifyTicket, (req, res) => {
   const file = req.file;
   try {
-    if (!file || !file.size) {
-      cleanupFile(file && file.path);
-      return res.status(400).json({ error: 'file_missing_or_empty' });
-    }
-
     const maxH = Number(req.ticket.maxH) || 1080;
     const maxFps = Number(req.ticket.maxFps) || 30;
     const preset = PRESETS[req.body.preset];
     // პრესეტი არ უნდა აღემატებოდეს ბილეთის ლიმიტს
     const H = Math.min(preset ? preset.h : maxH, maxH);
     const FPS = Math.min(preset ? preset.fps : maxFps, maxFps);
+
+    // ფაილის გარეშე (ახალი რეჟიმი): ბილეთი უკვე შემოწმდა და დახარჯულია,
+    // ვიდეოს დაპატჩვას ბრაუზერი თვითონ აკეთებს (core.js) -> ვაბრუნებთ მხოლოდ ლიმიტებს.
+    if (!file || !file.size) {
+      cleanupFile(file && file.path);
+      return res.json({ success: true, mode: 'client', height: H, fps: FPS });
+    }
 
     const id = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     const job = { id, status: 'queued', progress: 0, created: Date.now(), inSize: file.size, h: H, fps: FPS };
