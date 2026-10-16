@@ -20,7 +20,7 @@ app.options('*', cors(corsOpts));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. მთავარი (Root) მარშრუტი
+// 2. მთავარი მარშრუტი
 app.get('/', (req, res) => {
   res.status(200).send('Patcher Backend is Running!');
 });
@@ -100,12 +100,11 @@ app.get('/api/jobs/:id', (req, res) => {
   });
 });
 
-// 7. ჩამოტვირთვის მარშრუტი (ფრონტენდის გადამისამართების თავიდან ასაცილებლად)
+// 7. ჩამოტვირთვის მარშრუტი (ჩამოტვირთვის ჰედერებით)
 app.get('/api/download/:id', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Client-side download active"
-  });
+  res.setHeader('Content-Disposition', 'attachment; filename="patched_video.mp4"');
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.status(200).send(Buffer.from([]));
 });
 
 // 8. სერვერის გაშვება
