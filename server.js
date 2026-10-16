@@ -6,19 +6,21 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const app = express();
 
+// 1. CORS კონფიგურაცია - აუცილებლად პირველი უნდა იყოს!
+const corsOpts = {
+  origin: ['https://moonfull4k.xyz', 'https://www.moonfull4k.xyz'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+};
+
+app.use(cors(corsOpts));
+app.options('*', cors(corsOpts)); // ყველა OPTIONS (preflight) მოთხოვნის დაშვება
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS კონფიგურაცია
-const corsOpts = {
-  origin: ['https://moonfull4k.xyz', 'https://www.moonfull4k.xyz'],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
-app.use(cors(corsOpts));
-app.options('*', cors(corsOpts));
-
-// ერთჯერადი ბილეთების მეხსიერება
+// 2. ერთჯერადი ბილეთების მეხსიერება
 const usedTickets = new Map();
 
 setInterval(() => {
@@ -28,7 +30,7 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// ბილეთის შემოწმება
+// 3. ბილეთის შემოწმების ფუნქცია
 function verifyTicket(req, res, next) {
   try {
     if (!process.env.TICKET_SECRET) {
@@ -66,13 +68,12 @@ function verifyTicket(req, res, next) {
   }
 }
 
-// მარშრუტი /api/optimize
+// 4. მარშრუტი
 app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) => {
   try {
     const H = req.ticket.maxH;
     const FPS = req.ticket.maxFps;
 
-    // აქ ეშვება შენი დამუშავების ლოგიკა
     res.json({ success: true, height: H, fps: FPS });
   } catch (err) {
     res.status(500).json({ error: err.message });
