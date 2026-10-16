@@ -79,7 +79,15 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
     const H = req.ticket.maxH;
     const FPS = req.ticket.maxFps;
 
-    res.json({ success: true, height: H, fps: FPS });
+    // დროებითი უნიკალური jobId ფრონტენდის ინტერფეისისთვის
+    const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    res.json({ 
+      success: true, 
+      jobId: jobId, 
+      height: H, 
+      fps: FPS 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -87,4 +95,4 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
 
 // 6. სერვერის გაშვება
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));}`));
