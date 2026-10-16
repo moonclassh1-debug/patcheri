@@ -6,7 +6,7 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const app = express();
 
-// 1. CORS კონფიგურაცია - აუცილებლად პირველი უნდა იყოს!
+// 1. CORS კონფიგურაცია
 const corsOpts = {
   origin: ['https://moonfull4k.xyz', 'https://www.moonfull4k.xyz'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -20,7 +20,12 @@ app.options('*', cors(corsOpts)); // ყველა OPTIONS (preflight) მო�
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. ერთჯერადი ბილეთების მეხსიერება
+// 2. მთავარი (Root) მარშრუტი — 404 შეცდომის თავიდან ასაცილებლად
+app.get('/', (req, res) => {
+  res.status(200).send('Patcher Backend is Running!');
+});
+
+// 3. ერთჯერადი ბილეთების მეხსიერება
 const usedTickets = new Map();
 
 setInterval(() => {
@@ -30,7 +35,7 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// 3. ბილეთის შემოწმების ფუნქცია
+// 4. ბილეთის შემოწმების ფუნქცია
 function verifyTicket(req, res, next) {
   try {
     if (!process.env.TICKET_SECRET) {
@@ -68,7 +73,7 @@ function verifyTicket(req, res, next) {
   }
 }
 
-// 4. მარშრუტი
+// 5. ოპტიმიზაციის მარშრუტი
 app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) => {
   try {
     const H = req.ticket.maxH;
@@ -80,5 +85,6 @@ app.post('/api/optimize', upload.single('file'), verifyTicket, async (req, res) 
   }
 });
 
+// 6. სერვერის გაშვება
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
